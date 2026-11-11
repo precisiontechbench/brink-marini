@@ -2,7 +2,7 @@
 
 Installable web app (PWA) for weekly freight invoices. Static files, served from GitHub Pages.
 
-**Invoice header:** invoice #, date (warns unless Friday or Saturday), billing terms (Due on receipt, Net 7, Net 15, Net 30; due date fills in from the date), due date, status (Draft / Submitted / Paid), bill to, notes.
+**Invoice header:** invoice #, customer (from the Customers list, blank by default), date (warns unless Friday or Saturday), billing terms (Due on receipt, Net 7, Net 15, Net 30; due date fills in from the date), due date, status (Draft / Submitted / Paid), notes.
 
 **Line items:** Date, Freight Bill #, Description, Ticket #, Product / Item, Quantity (Tons), Pay Rate, Amount (= quantity x pay rate, rounded to cents). Totals for tons and dollars sit under the lines.
 

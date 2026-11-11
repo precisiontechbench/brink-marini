@@ -38,10 +38,10 @@ let remoteSha = null, dirty = false, pushing = false, pushAgain = false, pushTim
 let lockNote = '', pendingSetup = null, syncState = {s:'idle', msg:''};
 const ui = {q:'', status:''};
 
-function freshDb(){ return {v:1, counter:0, invoices:[], deleted:{}, settings:{company:'Brink & Marini, Inc.', billTo:'Brink & Marini, Inc.', from:'', defaultTerms:'Net 30', autoLock:30}, meta:{updated:0}}; }
+function freshDb(){ return {v:1, counter:0, invoices:[], customers:[], deleted:{}, settings:{company:'Brink & Marini, Inc.', defaultTerms:'Net 30', autoLock:30}, meta:{updated:0}}; }
 function ensureShape(d){
   const f = freshDb(); d = d && typeof d === 'object' ? d : f;
-  d.invoices = Array.isArray(d.invoices) ? d.invoices : []; d.deleted = d.deleted || {};
+  d.invoices = Array.isArray(d.invoices) ? d.invoices : []; d.customers = Array.isArray(d.customers) ? d.customers : []; d.deleted = d.deleted || {};
   d.settings = {...f.settings, ...(d.settings || {})}; d.meta = d.meta || {updated:0}; d.counter = +d.counter || 0;
   for (const i of d.invoices){ i.lines = Array.isArray(i.lines) ? i.lines : []; }
   return d;
@@ -50,10 +50,13 @@ function newLine(date = ''){ return {id:uid(), date, fb:'', desc:'', ticket:'', 
 function newInvoice(){
   db.counter += 1;
   const date = nextSubmitDay(), terms = db.settings.defaultTerms || 'Net 30';
-  const inv = {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), date, terms, due:dueFrom(date, terms), status:'Draft', billTo:db.settings.billTo, notes:'', lines:[newLine(), newLine(), newLine()], updated:Date.now()};
+  const inv = {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), date, terms, due:dueFrom(date, terms), status:'Draft', customerId:'', notes:'', lines:[newLine(), newLine(), newLine()], updated:Date.now()};
   db.invoices.push(inv); save(); return inv;
 }
 const getInv = id => db.invoices.find(i => i.id === id);
+const getCust = id => db.customers.find(c => c.id === id);
+const custName = id => getCust(id)?.name || '';
+const custOptions = cur => `<option value="">(none selected)</option>` + [...db.customers].sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${h(c.id)}" ${c.id === cur ? 'selected' : ''}>${h(c.name)}</option>`).join('');
 
 // ---------- crypto ----------
 const b64e = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
@@ -117,6 +120,9 @@ function merge(local, remote){      // newest edit of each invoice wins; deletio
   const m = new Map();
   for (const r of [...remote.invoices, ...local.invoices]){ const c = m.get(r.id); if (!c || (r.updated || 0) > (c.updated || 0)) m.set(r.id, r); }
   out.invoices = [...m.values()].filter(r => !(out.deleted[r.id] >= (r.updated || 0)));
+  const cm = new Map();
+  for (const r of [...remote.customers, ...local.customers]){ const c = cm.get(r.id); if (!c || (r.updated || 0) > (c.updated || 0)) cm.set(r.id, r); }
+  out.customers = [...cm.values()].filter(r => !(out.deleted[r.id] >= (r.updated || 0)));
   out.counter = Math.max(local.counter, remote.counter);
   const cutoff = Date.now() - 180 * 864e5; for (const [k, v] of Object.entries(out.deleted)) if (v < cutoff) delete out.deleted[k];
   return out;
@@ -264,7 +270,7 @@ function renderTop(active){
   const top = $('#top');
   if (!sess){ top.innerHTML = `<a class="brand">Brink &amp; Marini, Inc.<small>Weekly invoices</small></a>`; return; }
   top.innerHTML = `<a class="brand" href="#/">Brink &amp; Marini, Inc.<small>Weekly invoices</small></a>
-    <nav aria-label="Main"><a href="#/" ${active === 'list' ? 'aria-current="page"' : ''}>Invoices</a><a href="#/settings" ${active === 'settings' ? 'aria-current="page"' : ''}>Settings</a></nav>
+    <nav aria-label="Main"><a href="#/" ${active === 'list' ? 'aria-current="page"' : ''}>Invoices</a><a href="#/customers" ${active === 'customers' ? 'aria-current="page"' : ''}>Customers</a><a href="#/settings" ${active === 'settings' ? 'aria-current="page"' : ''}>Settings</a></nav>
     <span class="grow"></span><span class="syncstat" id="syncstat" role="status"></span><button class="btn small" data-act="lock">Lock</button>`;
   setSync(syncState.s, syncState.msg);
 }
@@ -273,6 +279,10 @@ function route(){
   if (!sess){ renderTop(); view.innerHTML = window.BM_VAULT ? viewLogin() : viewSetup(); return; }
   const parts = (location.hash || '#/').replace(/^#\/?/, '').split('/');
   if (parts[0] === 'inv' && getInv(parts[1])){ renderTop('list'); view.innerHTML = viewInvoice(getInv(parts[1])); recalc(); return; }
+  if (parts[0] === 'customers' && parts[1] && (parts[1] === 'new' || getCust(parts[1]))){
+    if (parts[1] === 'new'){ const c = {id:uid(), name:'', email:'', phone:'', address:'', notes:'', updated:Date.now()}; db.customers.push(c); location.replace('#/customers/' + c.id); return; }
+    renderTop('customers'); view.innerHTML = viewCustomer(getCust(parts[1])); return; }
+  if (parts[0] === 'customers'){ renderTop('customers'); view.innerHTML = viewCustomers(); return; }
   if (parts[0] === 'settings'){ renderTop('settings'); view.innerHTML = viewSettings(); return; }
   renderTop('list'); view.innerHTML = viewList(); fillRows();
 }
@@ -285,18 +295,18 @@ function viewList(){
     <div class="toolbar"><input type="search" id="q" placeholder="Search invoice #, freight bill #, ticket #, item…" value="${h(ui.q)}" aria-label="Search">
       <select id="statusf" aria-label="Status"><option value="">All statuses</option>${STATUSES.map(s => `<option ${ui.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
       <button class="btn" data-act="csv-all">Export CSV</button></div>
-    <div class="tablewrap"><table class="grid"><thead><tr><th>Invoice #</th><th>Date</th><th>Day</th><th>Lines</th><th class="num">Total tons</th><th class="num">Total</th><th>Terms</th><th>Due</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>`;
+    <div class="tablewrap"><table class="grid"><thead><tr><th>Invoice #</th><th>Customer</th><th>Date</th><th>Day</th><th>Lines</th><th class="num">Total tons</th><th class="num">Total</th><th>Terms</th><th>Due</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>`;
 }
 const totalTons = inv => round2(inv.lines.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0));
 function fillRows(){
   const q = ui.q.trim().toLowerCase();
   const rows = db.invoices.filter(i => (!ui.status || i.status === ui.status) &&
-    (!q || [i.number, i.notes, ...i.lines.flatMap(l => [l.fb, l.ticket, l.product, l.desc])].some(x => String(x || '').toLowerCase().includes(q)))).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    (!q || [i.number, i.notes, custName(i.customerId), ...i.lines.flatMap(l => [l.fb, l.ticket, l.product, l.desc])].some(x => String(x || '').toLowerCase().includes(q)))).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const body = $('#rows'); if (!body) return;
-  body.innerHTML = rows.length ? rows.map(i => `<tr data-id="${h(i.id)}" tabindex="0"><td data-label="Invoice #"><b>${h(i.number)}</b></td><td data-label="Date">${fmtDate(i.date)}</td><td data-label="Day">${dayName(i.date)}</td>
+  body.innerHTML = rows.length ? rows.map(i => `<tr data-id="${h(i.id)}" tabindex="0"><td data-label="Invoice #"><b>${h(i.number)}</b></td><td data-label="Customer">${h(custName(i.customerId))}</td><td data-label="Date">${fmtDate(i.date)}</td><td data-label="Day">${dayName(i.date)}</td>
     <td data-label="Lines">${i.lines.filter(l => l.fb || l.ticket || l.qty).length}</td><td class="num" data-label="Total tons">${totalTons(i)}</td><td class="num" data-label="Total"><b>${money(invTotal(i))}</b></td>
     <td data-label="Terms">${h(i.terms)}</td><td data-label="Due">${fmtDate(i.due)}</td><td data-label="Status"><span class="pill" data-s="${h(i.status)}">${h(i.status)}</span></td></tr>`).join('')
-    : `<tr><td colspan="9" class="empty" style="display:table-cell">${db.invoices.length ? 'No invoices match.' : 'No invoices yet. Press New invoice to start this week\'s.'}</td></tr>`;
+    : `<tr><td colspan="10" class="empty" style="display:table-cell">${db.invoices.length ? 'No invoices match.' : 'No invoices yet. Press New invoice to start this week\'s.'}</td></tr>`;
   const open = db.invoices.filter(i => i.status === 'Submitted'), draft = db.invoices.filter(i => i.status === 'Draft');
   $('#stats').innerHTML = `<div><b>${money(open.reduce((s, i) => s + invTotal(i), 0))}</b>Submitted, unpaid</div><div><b>${draft.length}</b>Drafts</div><div><b>${db.invoices.length}</b>Invoices</div>`;
 }
@@ -323,7 +333,7 @@ function viewInvoice(inv){
       <label class="f">Billing terms<select data-f="terms">${termsOptions(inv.terms)}</select></label>
       <label class="f">Due date<input type="date" data-f="due" value="${h(inv.due)}"><small>Fills in from the date and terms. You can still change it.</small></label>
       <label class="f">Status<select data-f="status">${STATUSES.map(s => `<option ${s === inv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
-      <label class="f wide">Bill to<input data-f="billTo" value="${h(inv.billTo)}"></label>
+      <label class="f wide">Customer (bill to)<select data-f="customerId">${custOptions(inv.customerId)}</select><small>Leave blank until you choose one. <a href="#/customers/new">Add a customer</a></small></label>
       <label class="f wide">Notes<textarea data-f="notes">${h(inv.notes)}</textarea></label>
     </div>
     <div class="sectionhead"><h2>Freight lines</h2><button type="button" class="btn small" data-act="add-line">Add line</button></div>
@@ -352,25 +362,41 @@ function viewSettings(){
   const S = db.settings;
   return `<div class="head"><h1>Settings</h1></div><div class="settings">
     <section class="panel"><h2>Defaults</h2><p>Used when you start a new invoice.</p><div class="formgrid" style="padding:0">
-      <label class="f wide">Bill to<input data-s="billTo" value="${h(S.billTo)}"></label>
       <label class="f">Default billing terms<select data-s="defaultTerms">${termsOptions(S.defaultTerms)}</select></label>
       <label class="f">Auto-lock after (minutes)<input type="number" min="5" data-s="autoLock" value="${h(S.autoLock)}"></label></div></section>
     <section class="panel"><h2>Backup</h2><p>Your data already lives in the private GitHub repository. This is an extra copy for your own files.</p>
       <div class="row"><button class="btn" data-act="backup">Download backup (JSON)</button><button class="btn" data-act="csv-all">Export all invoices (CSV)</button></div></section></div>`;
 }
 
+function viewCustomers(){
+  const rows = [...db.customers].sort((a, b) => a.name.localeCompare(b.name));
+  return `<div class="head"><div><h1>Customers</h1><p>Who your invoices are billed to.</p></div><a class="btn primary" href="#/customers/new">New customer</a></div>
+    <div class="tablewrap"><table class="grid"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th class="num">Invoices</th></tr></thead><tbody>
+    ${rows.length ? rows.map(c => `<tr data-href="#/customers/${h(c.id)}" tabindex="0"><td data-label="Name"><b>${h(c.name || '(unnamed)')}</b></td><td data-label="Email">${h(c.email)}</td><td data-label="Phone">${h(c.phone)}</td><td class="num" data-label="Invoices">${db.invoices.filter(i => i.customerId === c.id).length}</td></tr>`).join('')
+      : `<tr><td colspan="4" class="empty" style="display:table-cell">No customers yet.</td></tr>`}</tbody></table></div>`;
+}
+function viewCustomer(c){
+  const invs = db.invoices.filter(i => i.customerId === c.id);
+  return `<form id="custform" data-id="${h(c.id)}"><div class="head"><div><h1>${h(c.name || 'New customer')}</h1><p>Changes save automatically as you type.</p></div>
+    <div class="row"><a class="btn" href="#/customers">← All customers</a><button type="button" class="btn danger" data-act="del-cust">Delete</button></div></div>
+    <div class="panel"><div class="formgrid"><label class="f wide">Name / company<input data-c="name" value="${h(c.name)}" autofocus></label>
+      <label class="f">Email<input type="email" data-c="email" value="${h(c.email)}"></label><label class="f">Phone<input type="tel" data-c="phone" value="${h(c.phone)}"></label>
+      <label class="f wide">Billing address<textarea data-c="address">${h(c.address)}</textarea></label><label class="f wide">Notes<textarea data-c="notes">${h(c.notes)}</textarea></label></div>
+      <p class="meta" style="padding:0 1.1rem 1.1rem">${invs.length} invoice${invs.length === 1 ? '' : 's'} billed to this customer.</p></div></form>`;
+}
+
 // ---------- export / print ----------
 const csvCell = v => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 function csvFor(invs){
-  const rows = [['Invoice #','Invoice Date','Billing Terms','Due Date','Status','Date','Freight Bill #','Description','Ticket #','Product / Item','Quantity (Tons)','Pay Rate','Amount']];
+  const rows = [['Invoice #','Customer','Invoice Date','Billing Terms','Due Date','Status','Date','Freight Bill #','Description','Ticket #','Product / Item','Quantity (Tons)','Pay Rate','Amount']];
   for (const i of invs) for (const l of i.lines) if (l.fb || l.ticket || l.desc || l.product || l.qty || l.rate)
-    rows.push([i.number, i.date, i.terms, i.due, i.status, l.date, l.fb, l.desc, l.ticket, l.product, l.qty, l.rate, lineAmount(l).toFixed(2)]);
+    rows.push([i.number, custName(i.customerId), i.date, i.terms, i.due, i.status, l.date, l.fb, l.desc, l.ticket, l.product, l.qty, l.rate, lineAmount(l).toFixed(2)]);
   return rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 }
 function printInvoice(inv){
   const used = inv.lines.filter(l => l.date || l.fb || l.desc || l.ticket || l.product || l.qty || l.rate);
   $('#print').innerHTML = `<h1>${h(db.settings.company)}</h1><p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} (${dayName(inv.date)}) &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}</p>
-    <p>Bill to: ${h(inv.billTo)}</p>
+    ${(() => { const c = getCust(inv.customerId); return c ? `<p><b>Bill to:</b><br>${h(c.name)}${c.address ? '<br>' + h(c.address).replace(/\n/g, '<br>') : ''}${c.email ? '<br>' + h(c.email) : ''}${c.phone ? '<br>' + h(c.phone) : ''}</p>` : ''; })()}
     <table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="r">Quantity (Tons)</th><th class="r">Pay Rate</th><th class="r">Amount</th></tr></thead><tbody>
     ${used.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${h(l.fb)}</td><td>${h(l.desc)}</td><td>${h(l.ticket)}</td><td>${h(l.product)}</td><td class="r">${h(l.qty)}</td><td class="r">${l.rate === '' ? '' : money(l.rate)}</td><td class="r">${money(lineAmount(l))}</td></tr>`).join('')}
     </tbody><tfoot><tr><th colspan="5" class="r">Totals</th><th class="r">${totalTons(inv)}</th><th></th><th class="r">${money(invTotal(inv))}</th></tr></tfoot></table>
@@ -382,11 +408,12 @@ function printInvoice(inv){
 document.addEventListener('input', e => {
   if (e.target.id === 'q'){ ui.q = e.target.value; fillRows(); return; }
   if (e.target.dataset?.s && db){ const k = e.target.dataset.s; db.settings[k] = k === 'autoLock' ? Math.max(5, +e.target.value || 30) : e.target.value; save(); return; }
+  if (e.target.dataset?.c && db){ const c = getCust(e.target.closest('form').dataset.id); if (c){ c[e.target.dataset.c] = e.target.value; c.updated = Date.now(); save(); } return; }
   onEdit(e.target);
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'statusf'){ ui.status = e.target.value; fillRows(); return; }
-  if (e.target.dataset?.f === 'terms' || e.target.dataset?.f === 'status') onEdit(e.target);
+  if (['terms','status','customerId'].includes(e.target.dataset?.f)) onEdit(e.target);
   if (e.target.dataset?.s && db){ const k = e.target.dataset.s; db.settings[k] = k === 'autoLock' ? Math.max(5, +e.target.value || 30) : e.target.value; save(); }
 });
 document.addEventListener('submit', e => {
@@ -395,15 +422,18 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); if (dirty) push(); toast('Saving to GitHub…'); }
+  if (e.key === 'Enter' && e.target.closest?.('tr[data-href]')) location.hash = e.target.closest('tr').dataset.href;
   if (e.key === 'Enter' && e.target.closest?.('tr[data-id]')) location.hash = '#/inv/' + e.target.closest('tr').dataset.id;
 });
 document.addEventListener('click', e => {
+  const hr = e.target.closest('tr[data-href]'); if (hr){ location.hash = hr.dataset.href; return; }
   const row = e.target.closest('tr[data-id]'); if (row && !e.target.closest('button,a')){ location.hash = '#/inv/' + row.dataset.id; return; }
   const b = e.target.closest('[data-act]'); if (!b) return;
   const form = $('#invform'), inv = form ? getInv(form.dataset.id) : null;
   switch (b.dataset.act){
     case 'new': location.hash = '#/inv/' + newInvoice().id; break;
     case 'lock': lock(); break;
+    case 'del-cust': { const c = getCust($('#custform').dataset.id); if (c && confirm(`Delete ${c.name || 'this customer'}? Invoices keep their data but show no customer.`)){ db.customers = db.customers.filter(x => x.id !== c.id); db.deleted[c.id] = Date.now(); db.invoices.forEach(i => { if (i.customerId === c.id){ i.customerId = ''; i.updated = Date.now(); } }); save(); location.hash = '#/customers'; } break; }
     case 'dl-config': download('config.js', pendingSetup.config, 'text/javascript'); break;
     case 'setup-open': { const s = pendingSetup.secret; pendingSetup = null; startSession(s).catch(err => toast(err.message)); break; }
     case 'add-line': if (inv){ const l = newLine(); inv.lines.push(l); inv.updated = Date.now(); $('#lines').insertAdjacentHTML('beforeend', lineRow(l)); recalc(); save(); $('tr.li:last-child input', form).focus(); } break;
