@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="150" viewBox="0 0 560 150" role="img" aria-label="Brink &amp; Marini, Inc.">
+  <rect x="6" y="6" width="138" height="138" rx="14" fill="#1F3A5F"/>
+  <path d="M6 104h138v26a14 14 0 0 1-14 14H20a14 14 0 0 1-14-14z" fill="#F2C14E"/>
+  <text x="75" y="88" text-anchor="middle" font-family="Arial Narrow,Arial,Helvetica,sans-serif" font-weight="700" font-size="50" letter-spacing="-1" fill="#FFFFFF">B&amp;M</text>
+  <path d="M26 124h24M62 124h24M98 124h24" stroke="#1F3A5F" stroke-width="6" stroke-linecap="round"/>
+  <text x="168" y="74" font-family="Arial Narrow,Arial,Helvetica,sans-serif" font-weight="700" font-size="54" textLength="372" lengthAdjust="spacingAndGlyphs" fill="#1F3A5F">BRINK &amp; MARINI</text>
+  <rect x="170" y="88" width="372" height="5" fill="#F2C14E"/>
+  <text x="170" y="124" font-family="Arial,Helvetica,sans-serif" font-weight="600" font-size="23" textLength="372" lengthAdjust="spacing" fill="#56637A">INC.  ·  SACRAMENTO, CA</text>
+</svg>
