@@ -296,7 +296,7 @@ function route(){
 const termsOptions = cur => TERMS.map(t => `<option ${t === cur ? 'selected' : ''}>${h(t)}</option>`).join('');
 
 function viewList(){
-  return `<div class="head"><div><h1>Invoices</h1><p>One invoice per week, submitted on a Friday or Saturday.</p></div>
+  return `<div class="head"><div><h1>Invoices</h1><p>One invoice per week.</p></div>
     <button class="btn primary" data-act="new">New invoice</button></div>
     <div class="stats" id="stats"></div>
     <div class="toolbar"><input type="search" id="q" placeholder="Search invoice #, freight bill #, ticket #, item…" value="${h(ui.q)}" aria-label="Search">
