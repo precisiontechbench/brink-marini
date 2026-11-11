@@ -1,3 +1,3 @@
-// Brink & Marini login vault. Created by the first-run setup screen, then replaced by the downloaded config.js.
-// Encrypted with your username and password. Safe to commit; useless without the password.
-window.BM_VAULT = null;
+// Brink & Marini login vault. Encrypted with your username and password (PBKDF2-SHA256, 600,000 rounds, AES-256-GCM).
+// Safe to commit; useless without the password.
+window.BM_VAULT = {"v":1,"kdf":"PBKDF2-SHA256","iter":600000,"salt":"U0D0ps7LeBFN+s47A1Sz4Q==","iv":"Onlk3UYWYdaP4QZv","ct":"ubh64kFon06+7gSn9bkRF9svfCGPSdh5slKYBuZdS5UMTA/x37eeT83uiOAUMPM7zzqugUG6E36WU8JF+sqeCiWsnm3+66xZALdNR7k4aZ3reW+nocjPKX7n8/eL9WuHRg/0KOyoDvGN7uKys0yEHkLfHlLEajszG4TgzjPc1tS2OkLlyivCsSm1gQ5iQgX2msveUH/LUR8uGSCZZtGT6qXb9FrwPqLVcPM5Kw4iT/Z3YSSQK/rO4yJpgXw1ERSZQTFQT6FiTpb/O0m8jMUMtq1E44+JiwTgIbGXGb0Cp49hm3Xh0lCK06lEpzP8gJS0+I6sSzb8a7oXX/XfVA6nvg6HdXb0Hb+3Av4QuPVqWAjnIDQVOZ8QAg=="};
