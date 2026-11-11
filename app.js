@@ -332,7 +332,7 @@ function lineRow(l){
 }
 function viewInvoice(inv){
   return `<form id="invform" data-id="${h(inv.id)}" autocomplete="off">
-    <div class="head"><div><img src="logo.svg" alt="Brink &amp; Marini, Inc." style="height:96px;width:auto;display:block;margin-bottom:.5rem"><h1>Invoice ${h(inv.number)}</h1><p>Changes save automatically as you type.</p></div>
+    <div class="head"><div><img src="logo.png" alt="Brink &amp; Marini, Inc." style="height:90px;width:auto;display:block;margin-bottom:.5rem"><h1>Invoice ${h(inv.number)}</h1><p>Changes save automatically as you type.</p></div>
       <div class="row"><a class="btn" href="#/">← All invoices</a><button type="button" class="btn" data-act="print">Print / PDF</button><button type="button" class="btn" data-act="csv-one">CSV</button><button type="button" class="btn" data-act="dup">Duplicate</button><button type="button" class="btn danger" data-act="del">Delete</button></div></div>
     <div class="panel"><div class="formgrid">
       <label class="f">Invoice #<input data-f="number" value="${h(inv.number)}"><span class="warn" id="numwarn"></span></label>
@@ -415,7 +415,7 @@ function csvFor(invs){
 function printInvoice(inv){
   const used = inv.lines.filter(l => l.date || l.fb || l.desc || l.ticket || l.product || l.qty || l.rate);
   const S = db.settings;
-  $('#print').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16pt"><img src="logo.svg" alt="${h(S.company)}" style="height:78pt;width:auto"><p style="text-align:right;margin:0">${[S.addr1, S.addr2, S.phone, S.email].filter(Boolean).map(h).join('<br>')}</p></div>
+  $('#print').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16pt"><img src="logo.png" alt="${h(S.company)}" style="height:80pt;width:auto"><p style="text-align:right;margin:0">${[S.addr1, S.addr2, S.phone, S.email].filter(Boolean).map(h).join('<br>')}</p></div>
     <p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} (${dayName(inv.date)}) &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv.date))}</p>
     ${(() => { const c = getCust(inv.customerId); return c ? `<p><b>Bill to:</b><br>${h(c.name)}${c.address ? '<br>' + h(c.address).replace(/\n/g, '<br>') : ''}${c.email ? '<br>' + h(c.email) : ''}${c.phone ? '<br>' + h(c.phone) : ''}</p>` : ''; })()}
     <table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="r">Quantity (Tons)</th><th class="r">Pay Rate</th><th class="r">Amount</th></tr></thead><tbody>
