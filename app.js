@@ -25,6 +25,13 @@ const fmtDate = s => { const d = parseISO(s); return d ? d.toLocaleDateString('e
 const dayName = s => { const d = parseISO(s); return d ? d.toLocaleDateString('en-US', {weekday:'long'}) : ''; };
 const isSubmitDay = s => { const d = parseISO(s); return !!d && (d.getDay() === 5 || d.getDay() === 6); };   // Friday or Saturday
 function nextSubmitDay(from = new Date()){ const d = new Date(from.getFullYear(), from.getMonth(), from.getDate()); while (d.getDay() !== 5) d.setDate(d.getDate() + 1); return iso(d); }
+function weekOf(s){      // billing week runs Sunday through Saturday
+  const d = parseISO(s); if (!d) return null;
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()), b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
+  return {start:iso(a), end:iso(b)};
+}
+const weekText = s => { const w = weekOf(s); return w ? `Week: Sunday ${fmtDate(w.start)} to Saturday ${fmtDate(w.end)}` : ''; };
+const outsideWeek = (inv, ld) => { const w = weekOf(inv.date); return !!(w && ld && (ld < w.start || ld > w.end)); };
 function dueFrom(issued, terms){
   const d = parseISO(issued); if (!d) return '';
   if (terms === 'Due on receipt') return issued;
@@ -38,7 +45,7 @@ let remoteSha = null, dirty = false, pushing = false, pushAgain = false, pushTim
 let lockNote = '', pendingSetup = null, syncState = {s:'idle', msg:''};
 const ui = {q:'', status:''};
 
-function freshDb(){ return {v:1, counter:0, invoices:[], customers:[], deleted:{}, settings:{company:'Brink & Marini, Inc.', defaultTerms:'Net 30', autoLock:30}, meta:{updated:0}}; }
+function freshDb(){ return {v:1, counter:0, invoices:[], customers:[], deleted:{}, settings:{company:'Brink & Marini, Inc.', addr1:'10270 Elder Creek Road', addr2:'Sacramento, CA 95829', phone:'916-416-5291', email:'cmanica@aol.com', defaultTerms:'Net 30', autoLock:30}, meta:{updated:0}}; }
 function ensureShape(d){
   const f = freshDb(); d = d && typeof d === 'object' ? d : f;
   d.invoices = Array.isArray(d.invoices) ? d.invoices : []; d.customers = Array.isArray(d.customers) ? d.customers : []; d.deleted = d.deleted || {};
@@ -328,8 +335,8 @@ function viewInvoice(inv){
     <div class="head"><div><h1>Invoice ${h(inv.number)}</h1><p>Changes save automatically as you type.</p></div>
       <div class="row"><a class="btn" href="#/">← All invoices</a><button type="button" class="btn" data-act="print">Print / PDF</button><button type="button" class="btn" data-act="csv-one">CSV</button><button type="button" class="btn" data-act="dup">Duplicate</button><button type="button" class="btn danger" data-act="del">Delete</button></div></div>
     <div class="panel"><div class="formgrid">
-      <label class="f">Invoice #<input data-f="number" value="${h(inv.number)}"></label>
-      <label class="f">Date (Friday or Saturday)<input type="date" data-f="date" value="${h(inv.date)}"><span class="warn" id="daywarn"></span></label>
+      <label class="f">Invoice #<input data-f="number" value="${h(inv.number)}"><span class="warn" id="numwarn"></span></label>
+      <label class="f">Date (Friday or Saturday)<input type="date" data-f="date" value="${h(inv.date)}"><small id="weektxt"></small><span class="warn" id="daywarn"></span></label>
       <label class="f">Billing terms<select data-f="terms">${termsOptions(inv.terms)}</select></label>
       <label class="f">Due date<input type="date" data-f="due" value="${h(inv.due)}"><small>Fills in from the date and terms. You can still change it.</small></label>
       <label class="f">Status<select data-f="status">${STATUSES.map(s => `<option ${s === inv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
@@ -344,6 +351,9 @@ function viewInvoice(inv){
 function recalc(){
   const form = $('#invform'); if (!form) return; const inv = getInv(form.dataset.id); if (!inv) return;
   $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line); if (l) $('[data-amt]', tr).value = money(lineAmount(l)); });
+  $('#weektxt').textContent = weekText(inv.date);
+  $('#numwarn').textContent = db.invoices.some(i => i.id !== inv.id && i.number === inv.number) ? 'Another invoice already uses this number.' : '';
+  $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line), out = !!l && outsideWeek(inv, l.date), el = $('[data-l=date]', tr); el.style.borderColor = out ? 'var(--warn)' : ''; el.title = out ? 'This date is outside the invoice week (Sunday to Saturday).' : ''; });
   $('#tot-tons').textContent = totalTons(inv); $('#tot-amt').textContent = money(invTotal(inv));
   $('#daywarn').textContent = inv.date && !isSubmitDay(inv.date) ? `That is a ${dayName(inv.date)}. Invoices are submitted on Fridays or Saturdays.` : '';
 }
@@ -361,6 +371,15 @@ function onEdit(t){
 function viewSettings(){
   const S = db.settings;
   return `<div class="head"><h1>Settings</h1></div><div class="settings">
+    <section class="panel"><h2>Company</h2><p>Printed at the top of every invoice.</p><div class="formgrid" style="padding:0">
+      <label class="f wide">Company name<input data-s="company" value="${h(S.company)}"></label>
+      <label class="f wide">Street address<input data-s="addr1" value="${h(S.addr1)}"></label>
+      <label class="f wide">City, state, ZIP<input data-s="addr2" value="${h(S.addr2)}"></label>
+      <label class="f">Phone<input type="tel" data-s="phone" value="${h(S.phone)}"></label>
+      <label class="f">Email<input type="email" data-s="email" value="${h(S.email)}"></label></div></section>
+    <section class="panel"><h2>Invoice numbering</h2><p>The next new invoice will be numbered <b id="nextnum">BM-${String(db.counter + 1).padStart(4, '0')}</b>. Delete any test invoices first so numbers do not repeat.</p>
+      <div class="formgrid" style="padding:0"><label class="f">Next invoice number<input type="number" min="1" step="1" data-s="nextNum" value="${db.counter + 1}"></label></div>
+      <div class="row" style="margin-top:.75rem"><button class="btn" data-act="reset-num">Restart at BM-0001</button></div></section>
     <section class="panel"><h2>Defaults</h2><p>Used when you start a new invoice.</p><div class="formgrid" style="padding:0">
       <label class="f">Default billing terms<select data-s="defaultTerms">${termsOptions(S.defaultTerms)}</select></label>
       <label class="f">Auto-lock after (minutes)<input type="number" min="5" data-s="autoLock" value="${h(S.autoLock)}"></label></div></section>
@@ -395,7 +414,9 @@ function csvFor(invs){
 }
 function printInvoice(inv){
   const used = inv.lines.filter(l => l.date || l.fb || l.desc || l.ticket || l.product || l.qty || l.rate);
-  $('#print').innerHTML = `<h1>${h(db.settings.company)}</h1><p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} (${dayName(inv.date)}) &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}</p>
+  const S = db.settings;
+  $('#print').innerHTML = `<h1>${h(S.company)}</h1><p>${[S.addr1, S.addr2, S.phone, S.email].filter(Boolean).map(h).join('<br>')}</p>
+    <p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} (${dayName(inv.date)}) &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv.date))}</p>
     ${(() => { const c = getCust(inv.customerId); return c ? `<p><b>Bill to:</b><br>${h(c.name)}${c.address ? '<br>' + h(c.address).replace(/\n/g, '<br>') : ''}${c.email ? '<br>' + h(c.email) : ''}${c.phone ? '<br>' + h(c.phone) : ''}</p>` : ''; })()}
     <table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="r">Quantity (Tons)</th><th class="r">Pay Rate</th><th class="r">Amount</th></tr></thead><tbody>
     ${used.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${h(l.fb)}</td><td>${h(l.desc)}</td><td>${h(l.ticket)}</td><td>${h(l.product)}</td><td class="r">${h(l.qty)}</td><td class="r">${l.rate === '' ? '' : money(l.rate)}</td><td class="r">${money(lineAmount(l))}</td></tr>`).join('')}
@@ -405,16 +426,22 @@ function printInvoice(inv){
 }
 
 // ---------- events ----------
+function setSetting(el){
+  const k = el.dataset.s;
+  if (k === 'nextNum'){ db.counter = Math.max(1, parseInt(el.value, 10) || 1) - 1; const n = $('#nextnum'); if (n) n.textContent = 'BM-' + String(db.counter + 1).padStart(4, '0'); }
+  else db.settings[k] = k === 'autoLock' ? Math.max(5, +el.value || 30) : el.value;
+  save();
+}
 document.addEventListener('input', e => {
   if (e.target.id === 'q'){ ui.q = e.target.value; fillRows(); return; }
-  if (e.target.dataset?.s && db){ const k = e.target.dataset.s; db.settings[k] = k === 'autoLock' ? Math.max(5, +e.target.value || 30) : e.target.value; save(); return; }
+  if (e.target.dataset?.s && db){ setSetting(e.target); return; }
   if (e.target.dataset?.c && db){ const c = getCust(e.target.closest('form').dataset.id); if (c){ c[e.target.dataset.c] = e.target.value; c.updated = Date.now(); save(); } return; }
   onEdit(e.target);
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'statusf'){ ui.status = e.target.value; fillRows(); return; }
   if (['terms','status','customerId'].includes(e.target.dataset?.f)) onEdit(e.target);
-  if (e.target.dataset?.s && db){ const k = e.target.dataset.s; db.settings[k] = k === 'autoLock' ? Math.max(5, +e.target.value || 30) : e.target.value; save(); }
+  if (e.target.dataset?.s && db) setSetting(e.target);
 });
 document.addEventListener('submit', e => {
   e.preventDefault();
@@ -434,6 +461,7 @@ document.addEventListener('click', e => {
     case 'new': location.hash = '#/inv/' + newInvoice().id; break;
     case 'lock': lock(); break;
     case 'del-cust': { const c = getCust($('#custform').dataset.id); if (c && confirm(`Delete ${c.name || 'this customer'}? Invoices keep their data but show no customer.`)){ db.customers = db.customers.filter(x => x.id !== c.id); db.deleted[c.id] = Date.now(); db.invoices.forEach(i => { if (i.customerId === c.id){ i.customerId = ''; i.updated = Date.now(); } }); save(); location.hash = '#/customers'; } break; }
+    case 'reset-num': if (confirm('Restart invoice numbering so the next invoice is BM-0001? Delete any test invoices first or numbers will repeat.')){ db.counter = 0; save(); route(); toast('Next invoice will be BM-0001'); } break;
     case 'dl-config': download('config.js', pendingSetup.config, 'text/javascript'); break;
     case 'setup-open': { const s = pendingSetup.secret; pendingSetup = null; startSession(s).catch(err => toast(err.message)); break; }
     case 'add-line': if (inv){ const l = newLine(); inv.lines.push(l); inv.updated = Date.now(); $('#lines').insertAdjacentHTML('beforeend', lineRow(l)); recalc(); save(); $('tr.li:last-child input', form).focus(); } break;
