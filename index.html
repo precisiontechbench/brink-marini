@@ -128,6 +128,8 @@ table.grid{border-collapse:collapse; width:100%}
   .lines td.x,.lines td.mv{width:100%; text-align:right}
   .lines tfoot,.lines tfoot tr,.lines tfoot td{display:block} .lines tfoot td:empty{display:none}
 }
+/* Printing: our own "Page X of Y" at bottom right replaces the browser's URL/page footer */
+@page{size:letter; margin:.6in .6in .8in; @bottom-right{content:"Page " counter(page) " of " counter(pages); font:9pt Arial,Helvetica,sans-serif; color:#444}}
 @media print{
   body{background:#fff; color:#000}
   .topbar,main,#toast{display:none !important}
