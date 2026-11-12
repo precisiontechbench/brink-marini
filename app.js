@@ -336,7 +336,7 @@ function viewInvoice(inv){
       <div class="row"><a class="btn" href="#/">← All invoices</a><button type="button" class="btn" data-act="print">Print / PDF</button><button type="button" class="btn" data-act="csv-one">CSV</button><button type="button" class="btn" data-act="dup">Duplicate</button><button type="button" class="btn danger" data-act="del">Delete</button></div></div>
     <div class="panel"><div class="formgrid">
       <label class="f">Invoice #<input data-f="number" value="${h(inv.number)}"><span class="warn" id="numwarn"></span></label>
-      <label class="f">Date (Friday or Saturday)<input type="date" data-f="date" value="${h(inv.date)}"><small id="weektxt"></small><span class="warn" id="daywarn"></span></label>
+      <label class="f">Date<input type="date" data-f="date" value="${h(inv.date)}"><small id="weektxt"></small><span class="warn" id="daywarn"></span></label>
       <label class="f">Billing terms<select data-f="terms">${termsOptions(inv.terms)}</select></label>
       <label class="f">Due date<input type="date" data-f="due" value="${h(inv.due)}"><small>Fills in from the date and terms. You can still change it.</small></label>
       <label class="f">Status<select data-f="status">${STATUSES.map(s => `<option ${s === inv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
