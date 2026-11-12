@@ -358,7 +358,7 @@ function viewInvoice(inv){
       <tbody id="lines">${inv.lines.map(lineRow).join('')}</tbody>
       <tfoot>
         <tr class="sub"><td colspan="5" style="text-align:right">Materials: Rock, Sand and Gravel</td><td class="num" id="mat-tons"></td><td></td><td class="num" id="mat-amt"></td><td></td><td></td></tr>
-        <tr class="sub"><td colspan="5" style="text-align:right">Fuel Surcharge</td><td class="num" id="fuel-tons"></td><td></td><td class="num" id="fuel-amt"></td><td></td><td></td></tr>
+        <tr class="sub"><td colspan="5" style="text-align:right">Fuel Surcharge</td><td></td><td></td><td class="num" id="fuel-amt"></td><td></td><td></td></tr>
         <tr><td colspan="5" style="text-align:right">Totals</td><td class="num" id="tot-tons"></td><td></td><td class="num" id="tot-amt"></td><td></td><td></td></tr></tfoot></table></div></div></div></form>`;
 }
 function recalc(){
@@ -368,7 +368,7 @@ function recalc(){
   $('#numwarn').textContent = db.invoices.some(i => i.id !== inv.id && i.number === inv.number) ? 'Another invoice already uses this number.' : '';
   $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line), out = !!l && outsideWeek(inv, l.date), el = $('[data-l=date]', tr); el.style.borderColor = out ? 'var(--warn)' : ''; el.title = out ? 'This date is outside the invoice week (Sunday to Saturday).' : ''; });
   const S2 = sums(inv);
-  $('#mat-tons').textContent = S2.matTons; $('#mat-amt').textContent = money(S2.matAmt); $('#fuel-tons').textContent = S2.fuelTons; $('#fuel-amt').textContent = money(S2.fuelAmt);
+  $('#mat-tons').textContent = S2.matTons; $('#mat-amt').textContent = money(S2.matAmt); $('#fuel-amt').textContent = money(S2.fuelAmt);
   $('#tot-tons').textContent = totalTons(inv); $('#tot-amt').textContent = money(invTotal(inv));
   $('#daywarn').textContent = inv.date && !isSubmitDay(inv.date) ? `That is a ${dayName(inv.date)}. Invoices are submitted on Fridays or Saturdays.` : '';
 }
@@ -440,7 +440,7 @@ function printInvoice(inv){
     ${used.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${h(l.fb)}</td><td>${h(l.desc)}</td><td>${h(l.ticket)}</td><td>${h(l.product)}</td><td class="r">${h(l.qty)}</td><td class="r">${l.rate === '' ? '' : money(l.rate)}</td><td class="r">${money(lineAmount(l))}</td></tr>`).join('')}
     </tbody><tfoot>
     <tr><th colspan="5" class="r">Materials: Rock, Sand and Gravel</th><th class="r">${sums(inv).matTons}</th><th></th><th class="r">${money(sums(inv).matAmt)}</th></tr>
-    <tr><th colspan="5" class="r">Fuel Surcharge</th><th class="r">${sums(inv).fuelTons}</th><th></th><th class="r">${money(sums(inv).fuelAmt)}</th></tr>
+    <tr><th colspan="5" class="r">Fuel Surcharge</th><th></th><th></th><th class="r">${money(sums(inv).fuelAmt)}</th></tr>
     <tr><th colspan="5" class="r">Totals</th><th class="r">${totalTons(inv)}</th><th></th><th class="r">${money(invTotal(inv))}</th></tr></tfoot></table>
     ${inv.notes ? `<p>${h(inv.notes)}</p>` : ''}`;
   window.print();
@@ -525,7 +525,7 @@ document.addEventListener('click', e => {
     case 'del': if (inv && confirm(`Delete invoice ${inv.number}? This cannot be undone.`)){ db.invoices = db.invoices.filter(i => i.id !== inv.id); db.deleted[inv.id] = Date.now(); save(); location.hash = '#/'; } break;
     case 'print': if (inv) printInvoice(inv); break;
     case 'csv-one': if (inv){ const m = sums(inv), x = (label, t, a) => ['', '', '', '', '', '', '', label, '', '', t, '', a.toFixed(2)].map(csvCell).join(',');
-      download(`${inv.number}.csv`, csvFor([inv]) + '\r\n' + [x('Materials: Rock, Sand and Gravel', m.matTons, m.matAmt), x('Fuel Surcharge', m.fuelTons, m.fuelAmt), x('Total', totalTons(inv), invTotal(inv))].join('\r\n'), 'text/csv'); } break;
+      download(`${inv.number}.csv`, csvFor([inv]) + '\r\n' + [x('Materials: Rock, Sand and Gravel', m.matTons, m.matAmt), x('Fuel Surcharge', '', m.fuelAmt), x('Total', totalTons(inv), invTotal(inv))].join('\r\n'), 'text/csv'); } break;
     case 'csv-all': download('brink-marini-invoices.csv', csvFor(db.invoices), 'text/csv'); break;
     case 'backup': download(`brink-marini-backup-${iso(new Date())}.json`, JSON.stringify(db, null, 2), 'application/json'); break;
   }
