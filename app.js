@@ -359,7 +359,8 @@ function viewInvoice(inv){
       <tfoot>
         <tr class="sub"><td colspan="5" style="text-align:right">Materials: Rock, Sand and Gravel</td><td class="num" id="mat-tons"></td><td></td><td class="num" id="mat-amt"></td><td></td><td></td></tr>
         <tr class="sub"><td colspan="5" style="text-align:right">Fuel Surcharge</td><td></td><td></td><td class="num" id="fuel-amt"></td><td></td><td></td></tr>
-        <tr><td colspan="5" style="text-align:right">Totals</td><td class="num" id="tot-tons"></td><td></td><td class="num" id="tot-amt"></td><td></td><td></td></tr></tfoot></table></div></div></div></form>`;
+        <tr><td colspan="5" style="text-align:right">Totals</td><td class="num" id="tot-tons"></td><td></td><td class="num" id="tot-amt"></td><td></td><td></td></tr></tfoot></table></div></div></div>
+    <button type="button" class="btn primary fab" data-act="add-line" title="Add a new line at the bottom">+ Add line</button></form>`;
 }
 function recalc(){
   const form = $('#invform'); if (!form) return; const inv = getInv(form.dataset.id); if (!inv) return;
