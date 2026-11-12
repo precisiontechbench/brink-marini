@@ -435,7 +435,7 @@ function printInvoice(inv){
   const used = inv.lines.filter(l => l.date || l.fb || l.desc || l.ticket || l.product || l.qty || l.rate);
   const S = db.settings;
   $('#print').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16pt"><img src="logo.png" alt="${h(S.company)}" style="height:80pt;width:auto"><p style="text-align:right;margin:0">${[S.addr1, S.addr2, S.phone, S.email].filter(Boolean).map(h).join('<br>')}</p></div>
-    <p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} (${dayName(inv.date)}) &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv.date))}</p>
+    <p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv.date))}</p>
     ${(() => { const c = getCust(inv.customerId); return c ? `<p><b>Bill to:</b><br>${h(c.name)}${c.address ? '<br>' + h(c.address).replace(/\n/g, '<br>') : ''}${c.email ? '<br>' + h(c.email) : ''}${c.phone ? '<br>' + h(c.phone) : ''}</p>` : ''; })()}
     <table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="r">Quantity (Tons)</th><th class="r">Pay Rate</th><th class="r">Amount</th></tr></thead><tbody>
     ${used.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${h(l.fb)}</td><td>${h(l.desc)}</td><td>${h(l.ticket)}</td><td>${h(l.product)}</td><td class="r">${h(l.qty)}</td><td class="r">${l.rate === '' ? '' : money(l.rate)}</td><td class="r">${money(lineAmount(l))}</td></tr>`).join('')}
