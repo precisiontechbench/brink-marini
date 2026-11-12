@@ -312,7 +312,7 @@ function sums(inv){      // Materials = every line except Fuel Surcharge (Rock, 
   for (const l of inv.lines){ const t = parseFloat(l.qty) || 0, a = lineAmount(l); if (isFuel(l)){ r.fuelTons += t; r.fuelAmt += a; } else { r.matTons += t; r.matAmt += a; } }
   return {matTons:round2(r.matTons), matAmt:round2(r.matAmt), fuelTons:round2(r.fuelTons), fuelAmt:round2(r.fuelAmt)};
 }
-const totalTons = inv => round2(inv.lines.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0));
+const totalTons = inv => sums(inv).matTons;      // tons hauled = materials only; Fuel Surcharge lines are not counted
 function fillRows(){
   const q = ui.q.trim().toLowerCase();
   const rows = db.invoices.filter(i => (!ui.status || i.status === ui.status) &&
