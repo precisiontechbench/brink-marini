@@ -86,6 +86,11 @@ table.grid{border-collapse:collapse; width:100%}
 .lines th.num,.lines td.num input{text-align:right}
 .lines input.calc{background:var(--sunk); font-weight:600; font-variant-numeric:tabular-nums; text-align:right}
 .lines td.x{width:2.5rem}
+.lines td.mv{white-space:nowrap; width:7rem}
+.lines td.mv .btn{padding:.35rem .5rem; margin-left:.15rem}
+.lines .grab{cursor:grab; color:var(--muted); font-size:1.2rem; padding:0 .35rem; user-select:none}
+.lines .grab:active{cursor:grabbing}
+@media (hover:none){.lines .grab{display:none}}
 .lines tfoot td{padding:.6rem .35rem; font-weight:700; border-top:2px solid var(--ink)}
 .sectionhead{display:flex; justify-content:space-between; align-items:center; padding:1.1rem 1.1rem .7rem}
 .gate{min-height:calc(100dvh - 9rem); display:grid; place-items:center}
@@ -113,7 +118,7 @@ table.grid{border-collapse:collapse; width:100%}
   .lines table,.lines tbody,.lines tr,.lines td{display:block; width:100%}
   .lines tr.li{border:1px solid var(--line); border-radius:8px; background:var(--surface); padding:.4rem; margin-bottom:.6rem}
   .lines td::before{content:attr(data-label); display:block; font-size:.78rem; color:var(--muted)}
-  .lines td.x{width:100%; text-align:right}
+  .lines td.x,.lines td.mv{width:100%; text-align:right}
   .lines tfoot,.lines tfoot tr,.lines tfoot td{display:block} .lines tfoot td:empty{display:none}
 }
 @media print{

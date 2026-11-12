@@ -328,7 +328,8 @@ function lineRow(l){
     <td class="num" data-label="Quantity (Tons)"><input type="number" step="any" min="0" inputmode="decimal" data-l="qty" value="${h(l.qty)}" aria-label="Quantity (Tons)"></td>
     <td class="num" data-label="Pay Rate"><input type="number" step="any" min="0" inputmode="decimal" data-l="rate" value="${h(l.rate)}" aria-label="Pay Rate"></td>
     <td class="num" data-label="Amount"><input class="calc" readonly tabindex="-1" data-amt aria-label="Amount" value="${money(lineAmount(l))}"></td>
-    <td class="x"><button type="button" class="btn danger small" data-act="del-line" aria-label="Remove line" title="Remove line">✕</button></td></tr>`;
+    <td class="mv"><span class="grab" draggable="true" title="Drag to move this line" aria-hidden="true">⠿</span><button type="button" class="btn small" data-act="up-line" aria-label="Move line up" title="Move up">▲</button><button type="button" class="btn small" data-act="down-line" aria-label="Move line down" title="Move down">▼</button></td>
+    <td class="x"><button type="button" class="btn danger small" data-act="del-line" aria-label="Delete line" title="Delete line">✕</button></td></tr>`;
 }
 function viewInvoice(inv){
   return `<form id="invform" data-id="${h(inv.id)}" autocomplete="off">
@@ -344,9 +345,9 @@ function viewInvoice(inv){
       <label class="f wide">Notes<textarea data-f="notes">${h(inv.notes)}</textarea></label>
     </div>
     <div class="sectionhead"><h2>Freight lines</h2><button type="button" class="btn small" data-act="add-line">Add line</button></div>
-    <div class="lines"><div class="scroll"><table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="num">Quantity (Tons)</th><th class="num">Pay Rate</th><th class="num">Amount</th><th></th></tr></thead>
+    <div class="lines"><div class="scroll"><table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="num">Quantity (Tons)</th><th class="num">Pay Rate</th><th class="num">Amount</th><th>Move</th><th></th></tr></thead>
       <tbody id="lines">${inv.lines.map(lineRow).join('')}</tbody>
-      <tfoot><tr><td colspan="5" style="text-align:right">Totals</td><td class="num" id="tot-tons"></td><td></td><td class="num" id="tot-amt"></td><td></td></tr></tfoot></table></div></div></div></form>`;
+      <tfoot><tr><td colspan="5" style="text-align:right">Totals</td><td class="num" id="tot-tons"></td><td></td><td class="num" id="tot-amt"></td><td></td><td></td></tr></tfoot></table></div></div></div></form>`;
 }
 function recalc(){
   const form = $('#invform'); if (!form) return; const inv = getInv(form.dataset.id); if (!inv) return;
@@ -425,6 +426,36 @@ function printInvoice(inv){
   window.print();
 }
 
+// ---------- moving lines ----------
+function moveLine(inv, id, to){      // to = new index in inv.lines
+  const from = inv.lines.findIndex(l => l.id === id); if (from < 0) return;
+  to = Math.max(0, Math.min(inv.lines.length - 1, to)); if (to === from) return;
+  const [l] = inv.lines.splice(from, 1); inv.lines.splice(to, 0, l);
+  const body = $('#lines'), rows = $$('tr.li', body), tr = rows.find(r => r.dataset.line === id);
+  const order = inv.lines.map(x => x.id); rows.sort((a, b) => order.indexOf(a.dataset.line) - order.indexOf(b.dataset.line)).forEach(r => body.append(r));
+  inv.updated = Date.now(); save();
+}
+let dragId = null;
+document.addEventListener('dragstart', e => {
+  const g = e.target.closest?.('.grab'); if (!g) return;
+  const tr = g.closest('tr'); dragId = tr.dataset.line; tr.style.opacity = '.5';
+  e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); try { e.dataTransfer.setDragImage(tr, 20, 20); } catch(err) {}
+});
+document.addEventListener('dragover', e => {
+  const tr = e.target.closest?.('tr.li'); if (!dragId || !tr) return;
+  e.preventDefault(); $$('tr.li').forEach(r => { r.style.boxShadow = ''; });
+  const r = tr.getBoundingClientRect(); tr.style.boxShadow = e.clientY < r.top + r.height / 2 ? 'inset 0 3px 0 var(--focus)' : 'inset 0 -3px 0 var(--focus)';
+});
+document.addEventListener('drop', e => {
+  const tr = e.target.closest?.('tr.li'); if (!dragId || !tr) return; e.preventDefault();
+  const form = $('#invform'), inv = form && getInv(form.dataset.id); if (!inv) return;
+  const r = tr.getBoundingClientRect(), after = e.clientY >= r.top + r.height / 2;
+  const from = inv.lines.findIndex(l => l.id === dragId); let to = inv.lines.findIndex(l => l.id === tr.dataset.line) + (after ? 1 : 0);
+  if (from < to) to -= 1;
+  moveLine(inv, dragId, to);
+});
+document.addEventListener('dragend', () => { dragId = null; $$('tr.li').forEach(r => { r.style.opacity = ''; r.style.boxShadow = ''; }); });
+
 // ---------- events ----------
 function setSetting(el){
   const k = el.dataset.s;
@@ -465,7 +496,8 @@ document.addEventListener('click', e => {
     case 'dl-config': download('config.js', pendingSetup.config, 'text/javascript'); break;
     case 'setup-open': { const s = pendingSetup.secret; pendingSetup = null; startSession(s).catch(err => toast(err.message)); break; }
     case 'add-line': if (inv){ const l = newLine(); inv.lines.push(l); inv.updated = Date.now(); $('#lines').insertAdjacentHTML('beforeend', lineRow(l)); recalc(); save(); $('tr.li:last-child input', form).focus(); } break;
-    case 'del-line': if (inv){ const tr = b.closest('tr'); inv.lines = inv.lines.filter(l => l.id !== tr.dataset.line); inv.updated = Date.now(); tr.remove(); recalc(); save(); } break;
+    case 'up-line': case 'down-line': if (inv){ const id = b.closest('tr').dataset.line, i = inv.lines.findIndex(l => l.id === id); moveLine(inv, id, i + (b.dataset.act === 'up-line' ? -1 : 1)); b.focus(); } break;
+    case 'del-line': if (inv && confirm('Are you sure you want to Delete this line?')){ const tr = b.closest('tr'); inv.lines = inv.lines.filter(l => l.id !== tr.dataset.line); inv.updated = Date.now(); tr.remove(); recalc(); save(); } break;
     case 'dup': if (inv){ const c = clone(inv); db.counter += 1; Object.assign(c, {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), status:'Draft', date:nextSubmitDay(), updated:Date.now()});
       c.due = dueFrom(c.date, c.terms); c.lines.forEach(l => { l.id = uid(); }); db.invoices.push(c); save(); location.hash = '#/inv/' + c.id; toast('Duplicated as ' + c.number); } break;
     case 'del': if (inv && confirm(`Delete invoice ${inv.number}? This cannot be undone.`)){ db.invoices = db.invoices.filter(i => i.id !== inv.id); db.deleted[inv.id] = Date.now(); save(); location.hash = '#/'; } break;
