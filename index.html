@@ -44,7 +44,7 @@ h1{font-size:1.9rem} h2{font-size:1.3rem}
 .syncstat{font-size:.85rem; color:var(--mat-dim); white-space:nowrap}
 .syncstat[data-s="error"],.syncstat[data-s="pending"],.syncstat[data-s="saving"]{color:var(--tag)}
 .syncstat::before{content:""; display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:.4rem}
-main{padding:1.5rem clamp(1rem,3vw,2.5rem) 4rem; max-width:78rem; margin:0 auto}
+main{padding:1.5rem clamp(1rem,2vw,2rem) 4rem; max-width:none; width:100%}
 .head{display:flex; flex-wrap:wrap; align-items:flex-end; gap:1rem; justify-content:space-between; margin-bottom:1.1rem}
 .head p{margin:.2rem 0 0; color:var(--muted)}
 .row{display:flex; flex-wrap:wrap; gap:.5rem; align-items:center}
@@ -80,7 +80,8 @@ table.grid{border-collapse:collapse; width:100%}
 /* line items */
 .lines{padding:1.1rem; padding-top:0}
 .lines .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:6px; background:var(--bg); padding:.5rem}
-.lines table{width:100%; border-collapse:collapse; min-width:62rem}
+.lines table{width:100%; border-collapse:collapse; min-width:68rem}
+.lines th:nth-child(1){width:10.5rem} .lines th:nth-child(2){width:11rem} .lines th:nth-child(4){width:10rem} .lines th:nth-child(5){width:16%} .lines th:nth-child(6){width:9.5rem} .lines th:nth-child(7){width:8rem} .lines th:nth-child(8){width:9rem}
 .lines th{font-size:.8rem; font-weight:600; color:var(--muted); text-align:left; padding:.3rem .35rem; white-space:nowrap}
 .lines td{padding:.25rem .35rem; vertical-align:middle}
 .lines th.num,.lines td.num input{text-align:right}
@@ -105,6 +106,7 @@ table.grid{border-collapse:collapse; width:100%}
 #toast.on{transform:translateX(-50%); visibility:visible}
 #print{display:none}
 @media (max-width:720px){
+  .lines th{width:auto !important}
   .topbar nav{margin-left:0} .topbar .brand small{display:none}
   .topbar{flex-wrap:wrap; gap:.4rem .8rem}
   .syncstat{order:3}
