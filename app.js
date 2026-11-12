@@ -45,7 +45,7 @@ let remoteSha = null, dirty = false, pushing = false, pushAgain = false, pushTim
 let lockNote = '', pendingSetup = null, syncState = {s:'idle', msg:''};
 const ui = {q:'', status:''};
 
-function freshDb(){ return {v:1, counter:0, invoices:[], customers:[], deleted:{}, settings:{company:'Brink & Marini, Inc.', addr1:'10270 Elder Creek Road', addr2:'Sacramento, CA 95829', phone:'916-416-5291', email:'cmanica@aol.com', defaultTerms:'Net 30', autoLock:30}, meta:{updated:0}}; }
+function freshDb(){ return {v:1, counter:0, invoices:[], customers:[], deleted:{}, settings:{company:'Brink & Marini, Inc.', addr1:'10270 Elder Creek Road', addr2:'Sacramento, CA 95829', phone:'916-416-5291', email:'cmanica@aol.com', defaultTerms:'Net 30', autoLock:30, descOptions:['Vulcan Sacramento / Rio Linda', 'Vulcan Sacramento / Cameron Park'], productOptions:['1 X 4 ROCK', 'CONC. SAND', 'PEA GRAVEL']}, meta:{updated:0}}; }
 function ensureShape(d){
   const f = freshDb(); d = d && typeof d === 'object' ? d : f;
   d.invoices = Array.isArray(d.invoices) ? d.invoices : []; d.customers = Array.isArray(d.customers) ? d.customers : []; d.deleted = d.deleted || {};
@@ -318,13 +318,14 @@ function fillRows(){
   $('#stats').innerHTML = `<div><b>${money(open.reduce((s, i) => s + invTotal(i), 0))}</b>Submitted, unpaid</div><div><b>${draft.length}</b>Drafts</div><div><b>${db.invoices.length}</b>Invoices</div>`;
 }
 
+const listOptions = (list, cur) => `<option value=""></option>` + [...list, ...(cur && !list.includes(cur) ? [cur] : [])].map(o => `<option ${o === cur ? 'selected' : ''}>${h(o)}</option>`).join('');
 function lineRow(l){
   return `<tr class="li" data-line="${h(l.id)}">
     <td data-label="Date"><input type="date" data-l="date" value="${h(l.date)}" aria-label="Date"></td>
     <td data-label="Freight Bill #"><input data-l="fb" value="${h(l.fb)}" aria-label="Freight Bill #" autocomplete="off"></td>
-    <td data-label="Description"><input data-l="desc" value="${h(l.desc)}" aria-label="Description" autocomplete="off"></td>
+    <td data-label="Description"><select data-l="desc" aria-label="Description">${listOptions(db.settings.descOptions, l.desc)}</select></td>
     <td data-label="Ticket #"><input data-l="ticket" value="${h(l.ticket)}" aria-label="Ticket #" autocomplete="off"></td>
-    <td data-label="Product / Item"><input data-l="product" value="${h(l.product)}" aria-label="Product / Item" autocomplete="off"></td>
+    <td data-label="Product / Item"><select data-l="product" aria-label="Product / Item">${listOptions(db.settings.productOptions, l.product)}</select></td>
     <td class="num" data-label="Quantity (Tons)"><input type="number" step="any" min="0" inputmode="decimal" data-l="qty" value="${h(l.qty)}" aria-label="Quantity (Tons)"></td>
     <td class="num" data-label="Pay Rate"><input type="number" step="any" min="0" inputmode="decimal" data-l="rate" value="${h(l.rate)}" aria-label="Pay Rate"></td>
     <td class="num" data-label="Amount"><input class="calc" readonly tabindex="-1" data-amt aria-label="Amount" value="${money(lineAmount(l))}"></td>
@@ -381,6 +382,9 @@ function viewSettings(){
     <section class="panel"><h2>Invoice numbering</h2><p>The next new invoice will be numbered <b id="nextnum">BM-${String(db.counter + 1).padStart(4, '0')}</b>. Delete any test invoices first so numbers do not repeat.</p>
       <div class="formgrid" style="padding:0"><label class="f">Next invoice number<input type="number" min="1" step="1" data-s="nextNum" value="${db.counter + 1}"></label></div>
       <div class="row" style="margin-top:.75rem"><button class="btn" data-act="reset-num">Restart at BM-0001</button></div></section>
+    <section class="panel"><h2>Dropdown choices</h2><p>One choice per line. These fill the Description and Product / Item dropdowns on every invoice line. Lines already saved keep their value even if you remove it here.</p>
+      <div class="formgrid" style="padding:0"><label class="f">Description choices<textarea data-s="descOptions" rows="5">${h(S.descOptions.join('\n'))}</textarea></label>
+      <label class="f">Product / Item choices<textarea data-s="productOptions" rows="5">${h(S.productOptions.join('\n'))}</textarea></label></div></section>
     <section class="panel"><h2>Defaults</h2><p>Used when you start a new invoice.</p><div class="formgrid" style="padding:0">
       <label class="f">Default billing terms<select data-s="defaultTerms">${termsOptions(S.defaultTerms)}</select></label>
       <label class="f">Auto-lock after (minutes)<input type="number" min="5" data-s="autoLock" value="${h(S.autoLock)}"></label></div></section>
@@ -460,6 +464,7 @@ document.addEventListener('dragend', () => { dragId = null; $$('tr.li').forEach(
 function setSetting(el){
   const k = el.dataset.s;
   if (k === 'nextNum'){ db.counter = Math.max(1, parseInt(el.value, 10) || 1) - 1; const n = $('#nextnum'); if (n) n.textContent = 'BM-' + String(db.counter + 1).padStart(4, '0'); }
+  else if (k === 'descOptions' || k === 'productOptions') db.settings[k] = [...new Set(el.value.split('\n').map(x => x.trim()).filter(Boolean))];
   else db.settings[k] = k === 'autoLock' ? Math.max(5, +el.value || 30) : el.value;
   save();
 }
@@ -472,6 +477,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   if (e.target.id === 'statusf'){ ui.status = e.target.value; fillRows(); return; }
   if (['terms','status','customerId'].includes(e.target.dataset?.f)) onEdit(e.target);
+  if (e.target.tagName === 'SELECT' && ['desc', 'product'].includes(e.target.dataset?.l)) onEdit(e.target);
   if (e.target.dataset?.s && db) setSetting(e.target);
 });
 document.addEventListener('submit', e => {
