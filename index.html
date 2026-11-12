@@ -136,6 +136,8 @@ table.grid{border-collapse:collapse; width:100%}
   #print th,#print td{border:1px solid #999; padding:4pt 6pt; text-align:left; vertical-align:top}
   #print th{background:#eee} #print .r{text-align:right !important}
   #print tr{break-inside:avoid}
+  #print tfoot{display:table-row-group}   /* totals print once, after the last line, not on every page */
+  #print tfoot tr{break-inside:avoid}
 }
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 </style>
