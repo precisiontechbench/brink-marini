@@ -92,7 +92,9 @@ table.grid{border-collapse:collapse; width:100%}
 .lines .grab{cursor:grab; color:var(--muted); font-size:1.2rem; padding:0 .35rem; user-select:none}
 .lines .grab:active{cursor:grabbing}
 @media (hover:none){.lines .grab{display:none}}
-.lines tfoot td{padding:.6rem .35rem; font-weight:700; border-top:2px solid var(--ink)}
+.lines tfoot td{padding:.45rem .35rem; font-weight:700}
+.lines tfoot tr:last-child td{border-top:2px solid var(--ink); padding-top:.6rem}
+.lines tfoot tr.sub td{font-weight:600; color:var(--muted)}
 .sectionhead{display:flex; justify-content:space-between; align-items:center; padding:1.1rem 1.1rem .7rem}
 .gate{min-height:calc(100dvh - 9rem); display:grid; place-items:center}
 .gate > .panel{width:min(420px,100%); padding:2rem; display:flex; flex-direction:column; gap:1rem}
