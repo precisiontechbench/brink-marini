@@ -23,15 +23,14 @@ const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())
 const parseISO = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
 const fmtDate = s => { const d = parseISO(s); return d ? d.toLocaleDateString('en-US', {month:'2-digit', day:'2-digit', year:'numeric'}) : ''; };
 const dayName = s => { const d = parseISO(s); return d ? d.toLocaleDateString('en-US', {weekday:'long'}) : ''; };
-const isSubmitDay = s => { const d = parseISO(s); return !!d && (d.getDay() === 5 || d.getDay() === 6); };   // Friday or Saturday
-function nextSubmitDay(from = new Date()){ const d = new Date(from.getFullYear(), from.getMonth(), from.getDate()); while (d.getDay() !== 5) d.setDate(d.getDate() + 1); return iso(d); }
 function weekOf(s){      // billing week runs Sunday through Saturday
   const d = parseISO(s); if (!d) return null;
   const a = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()), b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
   return {start:iso(a), end:iso(b)};
 }
-const weekText = s => { const w = weekOf(s); return w ? `Week: Sunday ${fmtDate(w.start)} through Saturday ${fmtDate(w.end)}` : ''; };
-const outsideWeek = (inv, ld) => { const w = weekOf(inv.date); return !!(w && ld && (ld < w.start || ld > w.end)); };
+const weekText = inv => inv.weekStart && inv.weekEnd ? `Week: ${dayName(inv.weekStart)} ${fmtDate(inv.weekStart)} through ${dayName(inv.weekEnd)} ${fmtDate(inv.weekEnd)}` : '';
+const addDays = (s, n) => { const d = parseISO(s); if (!d) return ''; d.setDate(d.getDate() + n); return iso(d); };
+const outsideWeek = (inv, ld) => !!(ld && inv.weekStart && inv.weekEnd && (ld < inv.weekStart || ld > inv.weekEnd));
 function dueFrom(issued, terms){
   const d = parseISO(issued); if (!d) return '';
   if (terms === 'Due on receipt') return issued;
@@ -51,14 +50,19 @@ function ensureShape(d){
   d.invoices = Array.isArray(d.invoices) ? d.invoices : []; d.customers = Array.isArray(d.customers) ? d.customers : []; d.deleted = d.deleted || {};
   d.settings = {...f.settings, ...(d.settings || {})};
   if (!d.settings.migFuel){ d.settings.migFuel = true; if (!d.settings.productOptions.includes('FUEL SURCHARGE')) d.settings.productOptions = [...d.settings.productOptions, 'FUEL SURCHARGE']; } d.meta = d.meta || {updated:0}; d.counter = +d.counter || 0;
-  for (const i of d.invoices){ i.lines = Array.isArray(i.lines) ? i.lines : []; }
+  for (const i of d.invoices){
+    i.lines = Array.isArray(i.lines) ? i.lines : [];
+    if (!i.weekStart && i.date){ const w = weekOf(i.date); if (w){ i.weekStart = w.start; i.weekEnd = w.end; } }
+    if (!i.created && i.date) i.created = i.date;
+    i.weekStart = i.weekStart || ''; i.weekEnd = i.weekEnd || ''; i.created = i.created || ''; delete i.date;
+  }
   return d;
 }
 function newLine(date = ''){ return {id:uid(), date, fb:'', desc:'', ticket:'', product:'', qty:'', rate:''}; }
 function newInvoice(){
   db.counter += 1;
-  const date = nextSubmitDay(), terms = db.settings.defaultTerms || 'Net 30';
-  const inv = {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), date, terms, due:dueFrom(date, terms), status:'Draft', customerId:'', notes:'', lines:[newLine(), newLine(), newLine()], updated:Date.now()};
+  const created = iso(new Date()), w = weekOf(created), terms = db.settings.defaultTerms || 'Net 30';
+  const inv = {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), weekStart:w.start, weekEnd:w.end, created, terms, due:dueFrom(created, terms), status:'Draft', customerId:'', notes:'', lines:[newLine(), newLine(), newLine()], updated:Date.now()};
   db.invoices.push(inv); save(); return inv;
 }
 const getInv = id => db.invoices.find(i => i.id === id);
@@ -303,7 +307,7 @@ function viewList(){
     <div class="toolbar"><input type="search" id="q" placeholder="Search invoice #, freight bill #, ticket #, item…" value="${h(ui.q)}" aria-label="Search">
       <select id="statusf" aria-label="Status"><option value="">All statuses</option>${STATUSES.map(s => `<option ${ui.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
       <button class="btn" data-act="csv-all">Export CSV</button></div>
-    <div class="tablewrap"><table class="grid"><thead><tr><th>Invoice #</th><th>Customer</th><th>Date</th><th>Day</th><th>Lines</th><th class="num">Total tons</th><th class="num">Total</th><th>Terms</th><th>Due</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>`;
+    <div class="tablewrap"><table class="grid"><thead><tr><th>Invoice #</th><th>Customer</th><th>Week Beginning</th><th>Week Ending</th><th>Lines</th><th class="num">Total tons</th><th class="num">Total</th><th>Terms</th><th>Due</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>`;
 }
 const FUEL = 'FUEL SURCHARGE';
 const isFuel = l => String(l.product || '').trim().toUpperCase() === FUEL;
@@ -316,9 +320,9 @@ const totalTons = inv => sums(inv).matTons;      // tons hauled = materials only
 function fillRows(){
   const q = ui.q.trim().toLowerCase();
   const rows = db.invoices.filter(i => (!ui.status || i.status === ui.status) &&
-    (!q || [i.number, i.notes, custName(i.customerId), ...i.lines.flatMap(l => [l.fb, l.ticket, l.product, l.desc])].some(x => String(x || '').toLowerCase().includes(q)))).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    (!q || [i.number, i.notes, custName(i.customerId), ...i.lines.flatMap(l => [l.fb, l.ticket, l.product, l.desc])].some(x => String(x || '').toLowerCase().includes(q)))).sort((a, b) => (b.weekStart || '').localeCompare(a.weekStart || ''));
   const body = $('#rows'); if (!body) return;
-  body.innerHTML = rows.length ? rows.map(i => `<tr data-id="${h(i.id)}" tabindex="0"><td data-label="Invoice #"><b>${h(i.number)}</b></td><td data-label="Customer">${h(custName(i.customerId))}</td><td data-label="Date">${fmtDate(i.date)}</td><td data-label="Day">${dayName(i.date)}</td>
+  body.innerHTML = rows.length ? rows.map(i => `<tr data-id="${h(i.id)}" tabindex="0"><td data-label="Invoice #"><b>${h(i.number)}</b></td><td data-label="Customer">${h(custName(i.customerId))}</td><td data-label="Week Beginning">${fmtDate(i.weekStart)}</td><td data-label="Week Ending">${fmtDate(i.weekEnd)}</td>
     <td data-label="Lines">${i.lines.filter(l => l.fb || l.ticket || l.qty).length}</td><td class="num" data-label="Total tons">${totalTons(i)}</td><td class="num" data-label="Total"><b>${money(invTotal(i))}</b></td>
     <td data-label="Terms">${h(i.terms)}</td><td data-label="Due">${fmtDate(i.due)}</td><td data-label="Status"><span class="pill" data-s="${h(i.status)}">${h(i.status)}</span></td></tr>`).join('')
     : `<tr><td colspan="10" class="empty" style="display:table-cell">${db.invoices.length ? 'No invoices match.' : 'No invoices yet. Press New invoice to start this week\'s.'}</td></tr>`;
@@ -346,7 +350,9 @@ function viewInvoice(inv){
       <div class="row"><a class="btn" href="#/">← All invoices</a><button type="button" class="btn" data-act="print">Print / PDF</button><button type="button" class="btn" data-act="csv-one">CSV</button><button type="button" class="btn" data-act="dup">Duplicate</button><button type="button" class="btn danger" data-act="del">Delete</button></div></div>
     <div class="panel"><div class="formgrid">
       <label class="f">Invoice #<input data-f="number" value="${h(inv.number)}"><span class="warn" id="numwarn"></span></label>
-      <label class="f">Date<input type="date" data-f="date" value="${h(inv.date)}"><small id="weektxt"></small><span class="warn" id="daywarn"></span></label>
+      <label class="f">Week Beginning<input type="date" data-f="weekStart" value="${h(inv.weekStart)}"><span class="warn" id="wswarn"></span></label>
+      <label class="f">Week Ending<input type="date" data-f="weekEnd" value="${h(inv.weekEnd)}"><span class="warn" id="wewarn"></span></label>
+      <label class="f">Invoice Created<input type="date" data-f="created" value="${h(inv.created)}"></label>
       <label class="f">Billing terms<select data-f="terms">${termsOptions(inv.terms)}</select></label>
       <label class="f">Due date<input type="date" data-f="due" value="${h(inv.due)}"><small>Fills in from the date and terms. You can still change it.</small></label>
       <label class="f">Status<select data-f="status">${STATUSES.map(s => `<option ${s === inv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
@@ -365,19 +371,21 @@ function viewInvoice(inv){
 function recalc(){
   const form = $('#invform'); if (!form) return; const inv = getInv(form.dataset.id); if (!inv) return;
   $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line); if (l) $('[data-amt]', tr).value = money(lineAmount(l)); });
-  $('#weektxt').textContent = weekText(inv.date);
   $('#numwarn').textContent = db.invoices.some(i => i.id !== inv.id && i.number === inv.number) ? 'Another invoice already uses this number.' : '';
   $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line), out = !!l && outsideWeek(inv, l.date), el = $('[data-l=date]', tr); el.style.borderColor = out ? 'var(--warn)' : ''; el.title = out ? 'This date is outside the invoice week (Sunday through Saturday).' : ''; });
   const S2 = sums(inv);
   $('#mat-tons').textContent = S2.matTons; $('#mat-amt').textContent = money(S2.matAmt); $('#fuel-amt').textContent = money(S2.fuelAmt);
   $('#tot-tons').textContent = totalTons(inv); $('#tot-amt').textContent = money(invTotal(inv));
-  $('#daywarn').textContent = inv.date && !isSubmitDay(inv.date) ? `That is a ${dayName(inv.date)}. Invoices are submitted on Fridays or Saturdays.` : '';
+  const dow = (v, n) => { const d = parseISO(v); return !!d && d.getDay() !== n; };
+  $('#wswarn').textContent = dow(inv.weekStart, 0) ? `That is a ${dayName(inv.weekStart)}. The week begins on a Sunday.` : '';
+  $('#wewarn').textContent = dow(inv.weekEnd, 6) ? `That is a ${dayName(inv.weekEnd)}. The week ends on a Saturday.` : '';
 }
 function onEdit(t){
   const form = t.closest('#invform'); if (!form) return; const inv = getInv(form.dataset.id); if (!inv) return;
   if (t.dataset.f){
     inv[t.dataset.f] = t.value;
-    if (t.dataset.f === 'date' || t.dataset.f === 'terms'){ inv.due = dueFrom(inv.date, inv.terms) || inv.due; $('[data-f=due]', form).value = inv.due; }
+    if (t.dataset.f === 'weekStart' && parseISO(inv.weekStart)){ inv.weekEnd = addDays(inv.weekStart, 6); $('[data-f=weekEnd]', form).value = inv.weekEnd; }
+    if (t.dataset.f === 'created' || t.dataset.f === 'terms'){ inv.due = dueFrom(inv.created, inv.terms) || inv.due; $('[data-f=due]', form).value = inv.due; }
   } else if (t.dataset.l){
     const l = inv.lines.find(x => x.id === t.closest('tr').dataset.line); if (!l) return; l[t.dataset.l] = t.value;
   } else return;
@@ -426,16 +434,16 @@ function viewCustomer(c){
 // ---------- export / print ----------
 const csvCell = v => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 function csvFor(invs){
-  const rows = [['Invoice #','Customer','Invoice Date','Billing Terms','Due Date','Status','Date','Freight Bill #','Description','Ticket #','Product / Item','Quantity (Tons)','Pay Rate','Amount']];
+  const rows = [['Invoice #','Customer','Week Beginning','Week Ending','Invoice Created','Billing Terms','Due Date','Status','Date','Freight Bill #','Description','Ticket #','Product / Item','Quantity (Tons)','Pay Rate','Amount']];
   for (const i of invs) for (const l of i.lines) if (l.fb || l.ticket || l.desc || l.product || l.qty || l.rate)
-    rows.push([i.number, custName(i.customerId), i.date, i.terms, i.due, i.status, l.date, l.fb, l.desc, l.ticket, l.product, l.qty, l.rate, lineAmount(l).toFixed(2)]);
+    rows.push([i.number, custName(i.customerId), i.weekStart, i.weekEnd, i.created, i.terms, i.due, i.status, l.date, l.fb, l.desc, l.ticket, l.product, l.qty, l.rate, lineAmount(l).toFixed(2)]);
   return rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 }
 function printInvoice(inv){
   const used = inv.lines.filter(l => l.date || l.fb || l.desc || l.ticket || l.product || l.qty || l.rate);
   const S = db.settings;
   $('#print').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16pt"><img src="logo.png" alt="${h(S.company)}" style="height:80pt;width:auto"><p style="text-align:right;margin:0">${[S.addr1, S.addr2, S.phone, S.email].filter(Boolean).map(h).join('<br>')}</p></div>
-    <p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv.date))}</p>
+    <p><b>Invoice ${h(inv.number)}</b> &nbsp; Invoice Created: ${fmtDate(inv.created)} &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv))}</p>
     ${(() => { const c = getCust(inv.customerId), nl = v => h(v).replace(/\n/g, '<br>');
       const bill = `<div style="flex:1"><b>Bill to:</b>${c ? '<br>' + h(c.name) + (c.address ? '<br>' + nl(c.address) : '') + (c.email ? '<br>' + h(c.email) : '') + (c.phone ? '<br>' + h(c.phone) : '') : ''}</div>`;
       const dest = `<div style="flex:1"><b>Destination:</b>${inv.notes ? '<br>' + nl(inv.notes) : ''}</div>`;
@@ -524,11 +532,11 @@ document.addEventListener('click', e => {
     case 'add-line': if (inv){ const l = newLine(); inv.lines.push(l); inv.updated = Date.now(); $('#lines').insertAdjacentHTML('beforeend', lineRow(l)); recalc(); save(); $('tr.li:last-child input', form).focus(); } break;
     case 'up-line': case 'down-line': if (inv){ const id = b.closest('tr').dataset.line, i = inv.lines.findIndex(l => l.id === id); moveLine(inv, id, i + (b.dataset.act === 'up-line' ? -1 : 1)); b.focus(); } break;
     case 'del-line': if (inv && confirm('Are you sure you want to Delete this line?')){ const tr = b.closest('tr'); inv.lines = inv.lines.filter(l => l.id !== tr.dataset.line); inv.updated = Date.now(); tr.remove(); recalc(); save(); } break;
-    case 'dup': if (inv){ const c = clone(inv); db.counter += 1; Object.assign(c, {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), status:'Draft', date:nextSubmitDay(), updated:Date.now()});
-      c.due = dueFrom(c.date, c.terms); c.lines.forEach(l => { l.id = uid(); }); db.invoices.push(c); save(); location.hash = '#/inv/' + c.id; toast('Duplicated as ' + c.number); } break;
+    case 'dup': if (inv){ const c = clone(inv); db.counter += 1; Object.assign(c, {id:uid(), number:'BM-' + String(db.counter).padStart(4, '0'), status:'Draft', created:iso(new Date()), weekStart:weekOf(iso(new Date())).start, weekEnd:weekOf(iso(new Date())).end, updated:Date.now()});
+      c.due = dueFrom(c.created, c.terms); c.lines.forEach(l => { l.id = uid(); }); db.invoices.push(c); save(); location.hash = '#/inv/' + c.id; toast('Duplicated as ' + c.number); } break;
     case 'del': if (inv && confirm(`Delete invoice ${inv.number}? This cannot be undone.`)){ db.invoices = db.invoices.filter(i => i.id !== inv.id); db.deleted[inv.id] = Date.now(); save(); location.hash = '#/'; } break;
     case 'print': if (inv) printInvoice(inv); break;
-    case 'csv-one': if (inv){ const m = sums(inv), x = (label, t, a) => ['', '', '', '', '', '', '', label, '', '', t, '', a.toFixed(2)].map(csvCell).join(',');
+    case 'csv-one': if (inv){ const m = sums(inv), x = (label, t, a) => { const r = Array(16).fill(''); r[10] = label; r[13] = t; r[15] = a.toFixed(2); return r.map(csvCell).join(','); };
       download(`${inv.number}.csv`, csvFor([inv]) + '\r\n' + [x('Materials: Rock, Sand and Gravel', m.matTons, m.matAmt), x('Fuel Surcharge', '', m.fuelAmt), x('Total', totalTons(inv), invTotal(inv))].join('\r\n'), 'text/csv'); } break;
     case 'csv-all': download('brink-marini-invoices.csv', csvFor(db.invoices), 'text/csv'); break;
     case 'backup': download(`brink-marini-backup-${iso(new Date())}.json`, JSON.stringify(db, null, 2), 'application/json'); break;
