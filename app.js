@@ -351,7 +351,7 @@ function viewInvoice(inv){
       <label class="f">Due date<input type="date" data-f="due" value="${h(inv.due)}"><small>Fills in from the date and terms. You can still change it.</small></label>
       <label class="f">Status<select data-f="status">${STATUSES.map(s => `<option ${s === inv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
       <label class="f wide">Customer (bill to)<select data-f="customerId">${custOptions(inv.customerId)}</select><small>Leave blank until you choose one. <a href="#/customers/new">Add a customer</a></small></label>
-      <label class="f wide">Notes<textarea data-f="notes">${h(inv.notes)}</textarea></label>
+      <label class="f wide">Destination<textarea data-f="notes">${h(inv.notes)}</textarea></label>
     </div>
     <div class="sectionhead"><h2>Freight lines</h2><button type="button" class="btn small" data-act="add-line">Add line</button></div>
     <div class="lines"><div class="scroll"><table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="num">Quantity (Tons)</th><th class="num">Pay Rate</th><th class="num">Amount</th><th>Move</th><th></th></tr></thead>
@@ -436,14 +436,17 @@ function printInvoice(inv){
   const S = db.settings;
   $('#print').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16pt"><img src="logo.png" alt="${h(S.company)}" style="height:80pt;width:auto"><p style="text-align:right;margin:0">${[S.addr1, S.addr2, S.phone, S.email].filter(Boolean).map(h).join('<br>')}</p></div>
     <p><b>Invoice ${h(inv.number)}</b> &nbsp; Date: ${fmtDate(inv.date)} &nbsp; Terms: ${h(inv.terms)} &nbsp; Due: ${fmtDate(inv.due)}<br>${h(weekText(inv.date))}</p>
-    ${(() => { const c = getCust(inv.customerId); return c ? `<p><b>Bill to:</b><br>${h(c.name)}${c.address ? '<br>' + h(c.address).replace(/\n/g, '<br>') : ''}${c.email ? '<br>' + h(c.email) : ''}${c.phone ? '<br>' + h(c.phone) : ''}</p>` : ''; })()}
+    ${(() => { const c = getCust(inv.customerId), nl = v => h(v).replace(/\n/g, '<br>');
+      const bill = `<div style="flex:1"><b>Bill to:</b>${c ? '<br>' + h(c.name) + (c.address ? '<br>' + nl(c.address) : '') + (c.email ? '<br>' + h(c.email) : '') + (c.phone ? '<br>' + h(c.phone) : '') : ''}</div>`;
+      const dest = `<div style="flex:1"><b>Destination:</b>${inv.notes ? '<br>' + nl(inv.notes) : ''}</div>`;
+      return `<div style="display:flex;gap:24pt;align-items:flex-start;margin:8pt 0">${bill}${dest}</div>`; })()}
     <table><thead><tr><th>Date</th><th>Freight Bill #</th><th>Description</th><th>Ticket #</th><th>Product / Item</th><th class="r">Quantity (Tons)</th><th class="r">Pay Rate</th><th class="r">Amount</th></tr></thead><tbody>
     ${used.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${h(l.fb)}</td><td>${h(l.desc)}</td><td>${h(l.ticket)}</td><td>${h(l.product)}</td><td class="r">${h(l.qty)}</td><td class="r">${l.rate === '' ? '' : money(l.rate)}</td><td class="r">${money(lineAmount(l))}</td></tr>`).join('')}
     </tbody><tfoot>
     <tr><th colspan="5" class="r">Materials: Rock, Sand and Gravel</th><th class="r">${sums(inv).matTons}</th><th></th><th class="r">${money(sums(inv).matAmt)}</th></tr>
     <tr><th colspan="5" class="r">Fuel Surcharge</th><th></th><th></th><th class="r">${money(sums(inv).fuelAmt)}</th></tr>
     <tr><th colspan="5" class="r">Totals</th><th class="r">${totalTons(inv)}</th><th></th><th class="r">${money(invTotal(inv))}</th></tr></tfoot></table>
-    ${inv.notes ? `<p>${h(inv.notes)}</p>` : ''}`;
+`;
   window.print();
 }
 
