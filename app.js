@@ -350,8 +350,8 @@ function viewInvoice(inv){
       <div class="row"><a class="btn" href="#/">← All invoices</a><button type="button" class="btn" data-act="print">Print / PDF</button><button type="button" class="btn" data-act="csv-one">CSV</button><button type="button" class="btn" data-act="dup">Duplicate</button><button type="button" class="btn danger" data-act="del">Delete</button></div></div>
     <div class="panel"><div class="formgrid">
       <label class="f">Invoice #<input data-f="number" value="${h(inv.number)}"><span class="warn" id="numwarn"></span></label>
-      <label class="f">Week Beginning<input type="date" data-f="weekStart" value="${h(inv.weekStart)}"><span class="warn" id="wswarn"></span></label>
-      <label class="f">Week Ending<input type="date" data-f="weekEnd" value="${h(inv.weekEnd)}"><span class="warn" id="wewarn"></span></label>
+      <label class="f">Week Beginning<input type="date" data-f="weekStart" value="${h(inv.weekStart)}"></label>
+      <label class="f">Week Ending<input type="date" data-f="weekEnd" value="${h(inv.weekEnd)}"></label>
       <label class="f">Invoice Created<input type="date" data-f="created" value="${h(inv.created)}"></label>
       <label class="f">Billing terms<select data-f="terms">${termsOptions(inv.terms)}</select></label>
       <label class="f">Due date<input type="date" data-f="due" value="${h(inv.due)}"><small>Fills in from the date and terms. You can still change it.</small></label>
@@ -376,9 +376,6 @@ function recalc(){
   const S2 = sums(inv);
   $('#mat-tons').textContent = S2.matTons; $('#mat-amt').textContent = money(S2.matAmt); $('#fuel-amt').textContent = money(S2.fuelAmt);
   $('#tot-tons').textContent = totalTons(inv); $('#tot-amt').textContent = money(invTotal(inv));
-  const dow = (v, n) => { const d = parseISO(v); return !!d && d.getDay() !== n; };
-  $('#wswarn').textContent = dow(inv.weekStart, 0) ? `That is a ${dayName(inv.weekStart)}. The week begins on a Sunday.` : '';
-  $('#wewarn').textContent = dow(inv.weekEnd, 6) ? `That is a ${dayName(inv.weekEnd)}. The week ends on a Saturday.` : '';
 }
 function onEdit(t){
   const form = t.closest('#invform'); if (!form) return; const inv = getInv(form.dataset.id); if (!inv) return;
