@@ -30,7 +30,7 @@ function weekOf(s){      // billing week runs Sunday through Saturday
   const a = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()), b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
   return {start:iso(a), end:iso(b)};
 }
-const weekText = s => { const w = weekOf(s); return w ? `Week: Sunday ${fmtDate(w.start)} to Saturday ${fmtDate(w.end)}` : ''; };
+const weekText = s => { const w = weekOf(s); return w ? `Week: Sunday ${fmtDate(w.start)} through Saturday ${fmtDate(w.end)}` : ''; };
 const outsideWeek = (inv, ld) => { const w = weekOf(inv.date); return !!(w && ld && (ld < w.start || ld > w.end)); };
 function dueFrom(issued, terms){
   const d = parseISO(issued); if (!d) return '';
@@ -367,7 +367,7 @@ function recalc(){
   $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line); if (l) $('[data-amt]', tr).value = money(lineAmount(l)); });
   $('#weektxt').textContent = weekText(inv.date);
   $('#numwarn').textContent = db.invoices.some(i => i.id !== inv.id && i.number === inv.number) ? 'Another invoice already uses this number.' : '';
-  $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line), out = !!l && outsideWeek(inv, l.date), el = $('[data-l=date]', tr); el.style.borderColor = out ? 'var(--warn)' : ''; el.title = out ? 'This date is outside the invoice week (Sunday to Saturday).' : ''; });
+  $$('tr.li', form).forEach(tr => { const l = inv.lines.find(x => x.id === tr.dataset.line), out = !!l && outsideWeek(inv, l.date), el = $('[data-l=date]', tr); el.style.borderColor = out ? 'var(--warn)' : ''; el.title = out ? 'This date is outside the invoice week (Sunday through Saturday).' : ''; });
   const S2 = sums(inv);
   $('#mat-tons').textContent = S2.matTons; $('#mat-amt').textContent = money(S2.matAmt); $('#fuel-amt').textContent = money(S2.fuelAmt);
   $('#tot-tons').textContent = totalTons(inv); $('#tot-amt').textContent = money(invTotal(inv));
